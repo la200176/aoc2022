@@ -1,11 +1,5 @@
 import sys
 
-ABC = "Rock Paper Scissors"
-XYZ = "Rock Paper Scissors"
-
-shapes = {
-    "A": "Rock",
-}
 
 
 order = "rock > scissors > paper > rock"
@@ -32,10 +26,34 @@ scores = {
     "C Z": 3 + 3
 }
 
+XYZ_2 = "lose draw win"
+
+ABC = "Rock Paper Scissors"
+XYZ = "Rock Paper Scissors"
+
+
+translate = {
+    "A X": "A Z",
+    "A Y": "A X",
+    "A Z": "A Y",
+
+    "B X": "B X",
+    "B Y": "B Y",
+    "B Z": "B Z",
+
+    "C X": "C Y",
+    "C Y": "C Z",
+    "C Z": "C X"
+}
+
 if __name__ == '__main__':
     total = 0
+    total2 = 0
     for line in sys.stdin.readlines():
-        round = scores[line.strip()]
-        print(f"{line.strip()} {round}")
+        line = line.strip()
+        round = scores[line]
+        round2 = scores[translate[line]]
+        print(f"{line} {round} {translate[line]} {round2}")
         total += round
-    print(f"score {total}")
+        total2 += round2
+    print(f"score {total} score, part2: {total2}")
