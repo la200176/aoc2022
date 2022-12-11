@@ -46,59 +46,6 @@ cmd1 = """$ cd /
 $ ls"""
 
 
-def parse_listing_line(line):
-    try:
-        (x, y) = line.strip().split()
-        if x == 'dir':
-            return ((x, y), True)
-        return (('file', int(x), y), True)
-    except ValueError:
-        return (None, False)
-
-
-def read_listing(f, parse_line, location=[]):
-    result = []
-    while True:
-        line = f.readline()
-        if not line:
-            return (result, None)
-        (thing, ok) = parse_line(line)
-        if not ok:
-            f.unread(line)
-            new_location = read_command(f, parse_command_line, location)
-            print(f"LIS {new_location} {result}")
-        else:
-            result.append(thing)
-
-
-def parse_command_line(line):
-    (dollar, cmd, *rest) = line.strip().split()
-    if dollar == "$":
-        if cmd == "cd":
-            (target,) = rest
-            if target == "..":
-                return (lambda x: x[:-1], True)
-            else:
-                return (lambda x: x + rest, True)
-        if cmd == "ls":
-            return (lambda x: x, True)
-    return (None, False)
-
-
-def read_command(f, parse_command_line, location=[]):
-    while True:
-        line = f.readline()
-        if not line:
-            return (location, None)
-        (navigation, ok) = parse_command_line(line)
-        if not ok:
-            f.unread(line)
-            listing = read_listing(f, parse_listing_line, location)
-            print(f"CMD {location} {listing}")
-        else:
-            location = navigation(location)
-
-
 class Unread:
     def __init__(self, stream):
         self.stream = stream
@@ -115,33 +62,6 @@ class Unread:
         return self.stream.readline()
 
 
-def reader(f):
-    sio = Unread(f)
-    processor = dict(listing=lambda f: read_listing(f, parse_listing_line),
-                     command=lambda f: read_command(f, parse_command_line))
-    mode = "command"
-    while True:
-        (result, line) = processor[mode](sio)
-        if not line:
-            break
-        print(f"{mode}: {result}")
-        sio.unread(line)
-        if mode == "command":
-            mode = "listing"
-        elif mode == "listing":
-            mode = "command"
-
-
-def test_listing(x):
-    sio = Unread(io.StringIO(x))
-    print(read_listing(sio, parse_listing_line))
-
-
-def test_cmd(x):
-    sio = Unread(io.StringIO(x))
-    print(read_command(sio, parse_command_line))
-
-
 def test_unread():
     sio = Unread(io.StringIO("abc\ndef\n123"), "blabla\n")
     while True:
@@ -150,6 +70,51 @@ def test_unread():
             break
         print(line.strip())
 
-def test_reader():
+
+def parse_listing_line(line):
+    try:
+        (x, y) = line.strip().split()
+        if x == 'dir':
+            return (x, y)
+        return ('file', int(x), y)
+    except ValueError:
+        pass
+
+
+def summarize(files, dirs):
+    return sum((size for (size, _) in files))
+    +sum((size for (size, _) in dirs))
+
+
+def read_listing(f):
+    files = []
+    dirs_todo = set()
+    dirs = []
+    while True:
+        line = f.readline()
+        if not line:
+            return (files, dirs)
+        thing = parse_listing_line(line)
+        if not thing:
+            f.unread(line)
+            (name, listing) = read_dir(f)
+            dirs_todo.remove(name)
+            dirs.add((name, summarize(*listing)))
+        else:
+            (type_of_thing, *info) = thing
+            if type_of_thing == 'file':
+                files.append(info)
+            elif type_of_thing == 'dir':
+                dirs_todo.add(thing)
+
+
+def read_dir(sio):
+    line = sio.readline()
+    (_, _, name) = line.strip().split()  # $ cd a
+    _ = sio.readline()  # $ ls
+    return (name, read_listing(sio))
+
+
+def reader2():
     sio = Unread(io.StringIO(example))
-    read_command(sio, parse_command_line, [])
+    print(read_dir(sio))
