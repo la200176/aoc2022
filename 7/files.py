@@ -61,6 +61,11 @@ class Unread:
             return unread_line
         return self.stream.readline()
 
+    def next(self):
+        result = self.readline()
+        if result:
+            return result.strip()
+
 
 def test_unread():
     sio = Unread(io.StringIO("abc\ndef\n123"), "blabla\n")
@@ -70,51 +75,110 @@ def test_unread():
             break
         print(line.strip())
 
+list4 = """$ cd d
+$ ls
+4060174 j
+8033020 d.log
+5626152 d.ext
+7214296 k"""
 
-def parse_listing_line(line):
-    try:
-        (x, y) = line.strip().split()
+def parse_listing(line):
+    try: 
+        (x, y) = line.split()
         if x == 'dir':
             return (x, y)
-        return ('file', int(x), y)
+        return (int(x), y)
     except ValueError:
         pass
+    except AttributeError:
+        pass
+    
 
-
-def summarize(files, dirs):
-    return sum((size for (size, _) in files))
-    +sum((size for (size, _) in dirs))
-
-
-def read_listing(f):
-    files = []
-    dirs_todo = set()
-    dirs = []
+def listing(sio):
+    result = []
     while True:
-        line = f.readline()
-        if not line:
-            return (files, dirs)
-        thing = parse_listing_line(line)
+        line = sio.next()
+        thing = parse_listing(line)
         if not thing:
-            f.unread(line)
-            (name, listing) = read_dir(f)
-            dirs_todo.remove(name)
-            dirs.add((name, summarize(*listing)))
+            sio.unread(line)
+            return result
+        result.append(thing)
+
+        
+def read_dir(sio, level=0, accu=None):
+    accu = accu or []
+    line = sio.next()
+    (_, _, name) = line.split()
+    _ = sio.next()
+    content = listing(sio)
+    summary = []
+    total_size = 0
+    for thing in content:
+        if thing[0] == 'dir':
+            result, size, accu = read_dir(sio, level+1, accu)
+            summary.append([thing[0], size, thing[1], result])
+            total_size += size
         else:
-            (type_of_thing, *info) = thing
-            if type_of_thing == 'file':
-                files.append(info)
-            elif type_of_thing == 'dir':
-                dirs_todo.add(thing)
+            summary.append(['file', *thing])
+            total_size += thing[0]
+    if level > 0:
+        _ = sio.next()
+    if total_size <= 100000:
+        accu.append(total_size)
+    return summary, total_size, accu
 
-
-def read_dir(sio):
-    line = sio.readline()
-    (_, _, name) = line.strip().split()  # $ cd a
-    _ = sio.readline()  # $ ls
-    return (name, read_listing(sio))
-
-
-def reader2():
+def test():
     sio = Unread(io.StringIO(example))
-    print(read_dir(sio))
+    tree, size, found = read_dir(sio)
+    print(tree)
+    print(size)
+    print(sum(found))
+
+def task1():
+    with open('input') as f:
+        sio = Unread(f)
+        tree, size, found = read_dir(sio)
+    print(tree)
+    print(size)
+    print(sum(found))
+
+def task2():
+    total_space = 70000000
+    needed = 30000000
+    with open('input') as f:
+        sio = Unread(f)
+        tree, size, found = read_dir(sio)
+    print(tree)
+    print(size)
+    print(sum(found))
+    unused = total_space - size
+    print(f"unused: {unused}")
+    threshold = needed - unused
+    print(f"to delete: {threshold}")
+    result = find_dir(tree, threshold)
+    print(result)
+    print(f"min dir: {min(result)}")
+
+def find_dir(content, threshold, accu=[]):
+    for ((kind, size, name, *content)) in content:
+        if kind == 'dir':
+            if size > threshold:
+                accu.append(size)
+            accu = accu + find_dir(*content, threshold)
+    return accu
+
+def test2():
+    total_space = 70000000
+    needed = 30000000
+    sio = Unread(io.StringIO(example))
+    tree, size, found = read_dir(sio)
+    print(tree)
+    print(size)
+    print(sum(found))
+    unused = total_space - size
+    print(f"unused: {unused}")
+    threshold = needed - unused
+    print(f"to delete: {threshold}")
+    result = find_dir(tree, threshold)
+    print(result)
+    print(f"min dir: {min(result)}")
